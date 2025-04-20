@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Robot con Sensor de Sonido</title>
+  <style>
+    body {
+      margin: 0;
+      background-color: #111;
+      color: white;
+      font-family: sans-serif;
+      text-align: center;
+      padding: 20px;
+    }
+
+    .robot {
+      position: relative;
+      width: 90%;
+      max-width: 320px;
+      height: 300px;
+      margin: 20px auto;
+      background-color: #333;
+      border-radius: 20px;
+      box-shadow: 0 0 20px #0ff;
+    }
+
+    .ojo {
+      width: 60px;
+      height: 60px;
+      background-color: red;
+      border-radius: 50%;
+      position: absolute;
+      top: 50px;
+      transition: background-color 0.2s;
+      box-shadow: 0 0 10px #000;
+    }
+
+    .ojo.izquierdo {
+      left: 30px;
+    }
+
+    .ojo.derecho {
+      right: 30px;
+    }
+
+    .boca {
+      position: absolute;
+      bottom: 40px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 100px;
+      height: 20px;
+      background-color: white;
+      border-radius: 10px;
+      transition: height 0.2s, background-color 0.3s;
+    }
+
+    .boca.abierta {
+      height: 60px;
+      background-color: lightgreen;
+    }
+
+    .sensor {
+      position: absolute;
+      top: -30px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 160px;
+      height: 22px;
+      background-color: #555;
+      border: 2px solid cyan;
+      border-radius: 10px;
+      font-size: 12px;
+      line-height: 22px;
+      color: cyan;
+    }
+
+    .sensor.parpadeando {
+      animation: parpadear 0.5s infinite alternate;
+    }
+
+    #botonEscuchar {
+      margin-top: 30px;
+      padding: 12px 24px;
+      font-size: 18px;
+      background-color: #0ff;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      color: #111;
+      width: 90%;
+      max-width: 300px;
+    }
+
+    @keyframes parpadear {
+      0% {
+        background-color: #555;
+      }
+      50% {
+        background-color: red;
+      }
+      100% {
+        background-color: #555;
+      }
+    }
+  </style>
+</head>
+<body>
+  <h1>Robot con Sensor de Sonido</h1>
+
+  <div class="robot">
+    <div class="sensor" id="sensor">Sensor apagado</div>
+    <div class="ojo izquierdo" id="ojoIzq"></div>
+    <div class="ojo derecho" id="ojoDer"></div>
+    <div class="boca" id="boca"></div>
+  </div>
+
+  <button id="botonEscuchar" onclick="activarSensor()">Activar sensor de sonido</button>
+
+  <script>
+    let escuchando = false;
+    let ultimaReaccion = 0;
+    let intervaloBoca = null;
+
+    function simularHablaInicio() {
+      const boca = document.getElementById('boca');
+      const sensor = document.getElementById('sensor');
+      sensor.classList.add('parpadeando');
+      intervaloBoca = setInterval(() => {
+        boca.classList.toggle('abierta');
+      }, 250);
+    }
+
+    function simularHablaFin() {
+      clearInterval(intervaloBoca);
+      document.getElementById('boca').classList.remove('abierta');
+      document.getElementById('sensor').classList.remove('parpadeando');
+    }
+
+    function hablar(texto) {
+      const mensaje = new SpeechSynthesisUtterance(texto);
+      mensaje.lang = 'es-ES';
+      mensaje.pitch = 0.3;
+      mensaje.rate = 0.75;
+      mensaje.volume = 1.0;
+
+      const voces = speechSynthesis.getVoices();
+      const vozRobot = voces.find(v => v.name.toLowerCase().includes("google español") || v.name.toLowerCase().includes("español"));
+      if (vozRobot) mensaje.voice = vozRobot;
+
+      mensaje.onstart = simularHablaInicio;
+      mensaje.onend = simularHablaFin;
+
+      speechSynthesis.speak(mensaje);
+    }
+
+    function reaccionarAlSonido() {
+      const ahora = Date.now();
+      if (ahora - ultimaReaccion < 5000) return;
+      ultimaReaccion = ahora;
+
+      const ojoIzq = document.getElementById('ojoIzq');
+      const ojoDer = document.getElementById('ojoDer');
+      const sensor = document.getElementById('sensor');
+
+      ojoIzq.style.backgroundColor = 'cyan';
+      ojoDer.style.backgroundColor = 'cyan';
+      sensor.textContent = 'Escuchando...';
+
+      hablar("Escuché un sonido ya que tengo el sensor de sonido activado. Un sensor de sonido detecta vibraciones acústicas. Se usa en los robots para reaccionar a ruidos o comandos de voz. Puedes ver mi sensor de sonido instalado arriba de mi cabeza.");
+
+      setTimeout(() => {
+        ojoIzq.style.backgroundColor = 'red';
+        ojoDer.style.backgroundColor = 'red';
+        sensor.textContent = 'Sensor activo';
+      }, 6000);
+    }
+
+    function activarSensor() {
+      if (escuchando) return;
+      escuchando = true;
+
+      const sensor = document.getElementById('sensor');
+      sensor.textContent = "Sensor activo";
+
+      navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
+        const contexto = new (window.AudioContext || window.webkitAudioContext)();
+        const fuente = contexto.createMediaStreamSource(stream);
+        const analizador = contexto.createAnalyser();
+        fuente.connect(analizador);
+
+        const datos = new Uint8Array(analizador.frequencyBinCount);
+
+        function detectarRuido() {
+          analizador.getByteFrequencyData(datos);
+          const nivel = datos.reduce((a, b) => a + b, 0) / datos.length;
+          if (nivel > 60) {
+            reaccionarAlSonido();
+          }
+          requestAnimationFrame(detectarRuido);
+        }
+
+        detectarRuido();
+      }).catch(error => {
+        alert("Debes permitir el uso del micrófono.");
+        escuchando = false;
+      });
+    }
+
+    // Pre-cargar voces
+    window.speechSynthesis.onvoiceschanged = () => speechSynthesis.getVoices();
+  </script>
+</body>
+</html>
